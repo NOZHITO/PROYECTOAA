@@ -82,19 +82,18 @@ else:
     st.sidebar.info(f"Usuario: {email_usuario}\nRol: {rol_usuario.upper()}")
     
     if st.sidebar.button("Cerrar sesión"):
-        # 1. Cierra la sesión en Supabase
+        # 1. Cerrar sesión en Supabase
         supabase.auth.sign_out()
         
-        # 2. Resetea los estados de la aplicación
-        st.session_state['user'] = None
+        # 2. Limpiar todo el estado de la aplicación
+        st.session_state.clear()
         
-        # 3. Borramos el historial de navegación interno si es posible
-        # Usamos un parámetro de consulta (query param) para obligar a la app a resetearse
-        st.query_params.clear() 
-        
-        # 4. En lugar de st.rerun(), usamos una redirección a la raíz 
-        # esto rompe el ciclo de auto-logueo
-        st.switch_page("app.py")
+        # 3. Forzar al navegador a ir a la URL base de la app, sin fragmentos (#) ni tokens
+        # Cambia 'https://tu-app.streamlit.app' por la URL real de tu app
+        st.markdown(
+            f'<meta http-equiv="refresh" content="0;url=https://nozhito-proyectoaa-app-x2ivi2.streamlit.app">', 
+            unsafe_allow_html=True
+        )
 
     # --- 1. PÁGINA PRINCIPAL ---
     if eleccion == "Página Principal":
