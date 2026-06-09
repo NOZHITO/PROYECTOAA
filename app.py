@@ -82,21 +82,20 @@ else:
     st.sidebar.info(f"Usuario: {email_usuario}\nRol: {rol_usuario.upper()}")
     
     if st.sidebar.button("Cerrar sesión"):
-        # 1. Intentamos cerrar la sesión en Supabase
-        try:
-            supabase.auth.sign_out()
-        except:
-            pass
+        # 1. Cierra la sesión en Supabase
+        supabase.auth.sign_out()
         
-        # 2. Limpiamos todas las variables de estado
+        # 2. Resetea los estados de la aplicación
         st.session_state['user'] = None
-        st.session_state['df_bruto'] = None
-        st.session_state['df_cesta'] = None
-        st.session_state['reglas'] = None
         
-        # 3. Recargamos la página forzadamente
-        st.rerun()
+        # 3. Borramos el historial de navegación interno si es posible
+        # Usamos un parámetro de consulta (query param) para obligar a la app a resetearse
+        st.query_params.clear() 
         
+        # 4. En lugar de st.rerun(), usamos una redirección a la raíz 
+        # esto rompe el ciclo de auto-logueo
+        st.switch_page("app.py")
+
     # --- 1. PÁGINA PRINCIPAL ---
     if eleccion == "Página Principal":
         st.title("🛒 OPSO - Optimal Placement Stock")
