@@ -48,14 +48,13 @@ if st.session_state['user'] is None:
         apiKey=key,
         providers=["google"]
     )
-     
+
     if user_info:
         st.session_state['user'] = user_info
         st.rerun()
 else:
     # --- BARRA LATERAL (NAVEGACIÓN) ---
     usuario_data = st.session_state['user']
-    
     # Extraemos el email de forma segura (Supabase suele anidarlo)
     if isinstance(usuario_data, dict) and 'user' in usuario_data:
         email_usuario = usuario_data['user'].get('email', '')
@@ -83,13 +82,21 @@ else:
     st.sidebar.info(f"Usuario: {email_usuario}\nRol: {rol_usuario.upper()}")
     
     if st.sidebar.button("Cerrar sesión"):
+        # 1. Intentamos cerrar la sesión en Supabase
         try:
-            supabase.auth.sign_out() 
-        except Exception:
+            supabase.auth.sign_out()
+        except:
             pass
+        
+        # 2. Limpiamos todas las variables de estado
         st.session_state['user'] = None
+        st.session_state['df_bruto'] = None
+        st.session_state['df_cesta'] = None
+        st.session_state['reglas'] = None
+        
+        # 3. Recargamos la página forzadamente
         st.rerun()
-
+        
     # --- 1. PÁGINA PRINCIPAL ---
     if eleccion == "Página Principal":
         st.title("🛒 OPSO - Optimal Placement Stock")
