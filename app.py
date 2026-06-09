@@ -82,9 +82,9 @@ else:
     st.sidebar.markdown("---")
     st.sidebar.info(f"Usuario: {email_usuario}\nRol: {rol_usuario.upper()}")
     
-   if st.sidebar.button("Cerrar sesión"):
+    if st.sidebar.button("Cerrar sesión"):
         try:
-            supabase.auth.sign_out() # <-- Esto destruye la sesión real en Supabase
+            supabase.auth.sign_out() 
         except Exception:
             pass
         st.session_state['user'] = None
