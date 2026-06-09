@@ -48,7 +48,7 @@ if st.session_state['user'] is None:
         apiKey=key,
         providers=["google"]
     )
-    git 
+     
     if user_info:
         st.session_state['user'] = user_info
         st.rerun()
