@@ -245,7 +245,6 @@ elif eleccion == "Reportes":
         st.download_button(
             label="📄 Descargar Reporte de Rendimiento (PDF)",
             data=pdf_bytes,
-            file_name="OPSO_Reporte_Ejecutivo.pdf",
+            file_name="OPSO_Report e_Ejecutivo.pdf",
             mime="application/pdf"
         )
-    
