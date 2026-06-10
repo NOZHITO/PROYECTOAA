@@ -38,21 +38,6 @@ def obtener_rol(email):
         st.sidebar.error(f"🚨 Error de Base de Datos: {e}")
         return 'analista'
 
-
-# --- NUEVO: PANTALLA DE CIERRE DE SESIÓN VIRTUAL ---
-# Si detectamos en la URL que el usuario quiso salir, bloqueamos el acceso
-if st.query_params.get("estado") == "logout":
-    st.title("🔐 Acceso a OPSO")
-    st.success("Has cerrado sesión exitosamente.")
-    st.info("Tu sesión en el panel está inactiva. Para volver a entrar, haz clic abajo.")
-    
-    if st.button("Volver a iniciar sesión"):
-        st.query_params.clear()
-        st.rerun()
-        
-    st.stop() # Esto detiene Python aquí mismo. ¡Nadie pasa sin presionar el botón!
-
-
 # --- LÓGICA DE LOGIN Y SEGURIDAD ---
 if st.session_state['user'] is None:
     st.title("🔐 Acceso a OPSO")
@@ -97,7 +82,7 @@ else:
     st.sidebar.markdown("---")
     st.sidebar.info(f"Usuario: {email_usuario}\nRol: {rol_usuario.upper()}")
     
-    # --- BOTÓN OSCURO NATIVO (SOLUCIÓN SOFT LOGOUT) ---
+    # --- BOTÓN OSCURO NATIVO (SOLUCIÓN DIRECTA) ---
     if st.sidebar.button("Cerrar sesión", key="btn_logout"):
         # 1. Avisamos a Supabase en el lado del servidor
         try:
@@ -105,12 +90,19 @@ else:
         except:
             pass
             
-        # 2. Borramos todos tus datos de la memoria
+        # 2. Borramos todos tus datos de la memoria de Python
         st.session_state.clear()
         
-        # 3. Le agregamos una etiqueta secreta a la URL para activar la pantalla de bloqueo
-        st.query_params["estado"] = "logout"
-        st.rerun()
+        # 3. La magia: JS inyectado nativamente que aniquila el token y recarga la página a la raíz
+        st.html("""
+            <script>
+                // Destruir el token guardado en el navegador
+                localStorage.clear();
+                sessionStorage.clear();
+                // Redirigir limpiamente a la URL original (funciona en local y en la nube)
+                window.top.location.href = window.top.location.origin + window.top.location.pathname;
+            </script>
+        """)
 
     # --- 1. PÁGINA PRINCIPAL ---
     if eleccion == "Página Principal":
