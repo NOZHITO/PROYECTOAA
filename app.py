@@ -82,7 +82,7 @@ else:
     st.sidebar.info(f"Usuario: {email_usuario}\nRol: {rol_usuario.upper()}")
     
     # BOTÓN OSCURO ORIGINAL (CON SUPERPODERES DE JAVASCRIPT)
-    if st.sidebar.button("Cerrar sesión"):
+    if st.sidebar.button("Cerrar sesión", key="btn_logout"):
         # 1. Cierra sesión en la base de datos
         try:
             supabase.auth.sign_out()
@@ -103,20 +103,6 @@ else:
         </script>
         """
         st.components.v1.html(js_limpieza, height=0)
-    
-    if st.sidebar.button("Cerrar sesión"):
-        # 1. Cerrar sesión en Supabase
-        supabase.auth.sign_out()
-        
-        # 2. Limpiar todo el estado de la aplicación
-        st.session_state.clear()
-        
-        # 3. Forzar al navegador a ir a la URL base de la app, sin fragmentos (#) ni tokens
-        # Cambia 'https://tu-app.streamlit.app' por la URL real de tu app
-        st.markdown(
-            f'<meta http-equiv="refresh" content="0;url=https://nozhito-proyectoaa-app-x2ivi2.streamlit.app">', 
-            unsafe_allow_html=True
-        )
 
     # --- 1. PÁGINA PRINCIPAL ---
     if eleccion == "Página Principal":
