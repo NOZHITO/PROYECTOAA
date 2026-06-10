@@ -6,6 +6,7 @@ import matplotlib.patches as patches
 from fpdf import FPDF
 from supabase import create_client, Client
 from streamlit_supabase_auth import login_form
+from streamlit_supabase_auth import login_form, logout_button
 
 # Configuración básica de la página
 st.set_page_config(page_title="OPSO - Optimal Placement Stock", page_icon="🛒", layout="wide")
@@ -78,8 +79,11 @@ else:
         
     eleccion = st.sidebar.radio("Navegación", menu)
 
-    st.sidebar.markdown("---")
     st.sidebar.info(f"Usuario: {email_usuario}\nRol: {rol_usuario.upper()}")
+    
+    # 💥 BOTÓN OFICIAL QUE DESTRUYE EL TOKEN DEL NAVEGADOR
+    with st.sidebar:
+        logout_button()
     
     if st.sidebar.button("Cerrar sesión"):
         # 1. Cerrar sesión en Supabase
