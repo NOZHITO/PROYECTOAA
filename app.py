@@ -6,6 +6,8 @@ import matplotlib.patches as patches
 from fpdf import FPDF
 from supabase import create_client, Client
 from streamlit_supabase_auth import login_form
+from streamlit_supabase_auth import login_form, logout_button
+
 
 # Configuración básica de la página
 st.set_page_config(page_title="OPSO - Optimal Placement Stock", page_icon="🛒", layout="wide")
@@ -82,27 +84,15 @@ else:
     st.sidebar.markdown("---")
     st.sidebar.info(f"Usuario: {email_usuario}\nRol: {rol_usuario.upper()}")
     
-    # --- BOTÓN OSCURO NATIVO (SOLUCIÓN DIRECTA) ---
-    if st.sidebar.button("Cerrar sesión", key="btn_logout"):
-        # 1. Avisamos a Supabase en el lado del servidor
-        try:
-            supabase.auth.sign_out()
-        except:
-            pass
-            
-        # 2. Borramos todos tus datos de la memoria de Python
-        st.session_state.clear()
+    # 💥 BOTÓN OFICIAL CON RECARGA AUTOMÁTICA
+    with st.sidebar:
+        click_salir = logout_button(url=url, apiKey=key)
         
-        # 3. La magia: JS inyectado nativamente que aniquila el token y recarga la página a la raíz
-        st.html("""
-            <script>
-                // Destruir el token guardado en el navegador
-                localStorage.clear();
-                sessionStorage.clear();
-                // Redirigir limpiamente a la URL original (funciona en local y en la nube)
-                window.top.location.href = window.top.location.origin + window.top.location.pathname;
-            </script>
-        """)
+        if click_salir:
+            # Limpiamos la memoria de la app
+            st.session_state.clear()
+            # Forzamos el reinicio visual instantáneo
+            st.rerun()
 
     # --- 1. PÁGINA PRINCIPAL ---
     if eleccion == "Página Principal":
