@@ -56,7 +56,6 @@ else:
     # --- BARRA LATERAL (NAVEGACIÓN) ---
     usuario_data = st.session_state['user']
     
-    # Extraemos el email de forma segura
     if isinstance(usuario_data, dict) and 'user' in usuario_data:
         email_usuario = usuario_data['user'].get('email', '')
     elif isinstance(usuario_data, dict):
@@ -69,7 +68,6 @@ else:
     st.sidebar.title("Menú OPSO")
     st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3081/3081840.png", width=80)
     
-    # Menú dinámico según el rol (AHORA INCLUYE 'CERRAR SESIÓN')
     if rol_usuario == 'admin':
         menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes", "Cerrar Sesión"]
     elif rol_usuario == 'gerente':
@@ -99,7 +97,6 @@ else:
         st.title("📂 Entrada y Preprocesamiento de Datos")
         st.write("Sube el archivo CSV con las transacciones del supermercado o conéctate a la base de datos.")
         
-        # Opción 1: Subir CSV
         archivo_subido = st.file_uploader("Cargar archivo CSV", type=["csv"])
         
         if archivo_subido is not None:
@@ -109,12 +106,10 @@ else:
         st.write("---")
         st.write("O bien, sincroniza directamente con la base de datos en la nube:")
         
-        # Opción 2: Conectar a Supabase
         if st.button("🔄 Descargar datos desde Supabase"):
             with st.spinner("Conectando con la base de datos..."):
                 try:
                     respuesta = supabase.table("transacciones").select("*").execute()
-                    
                     if respuesta.data:
                         df_nube = pd.DataFrame(respuesta.data)
                         df_nube = df_nube.rename(columns={'id_factura': 'ID_Factura', 'producto': 'Producto'})
@@ -122,14 +117,19 @@ else:
                         st.success(f"¡Se descargaron {len(df_nube)} registros desde Supabase exitosamente!")
                     else:
                         st.warning("La base de datos está vacía.")
-                        
                 except Exception as e:
-                    st.error(f"Error al conectar con Supabase: {e}\n(Asegúrate de haber configurado tu archivo .streamlit/secrets.toml correctamente).")
+                    st.error(f"Error al conectar con Supabase: {e}")
                     
         # Procesamiento común
         if st.session_state['df_bruto'] is not None:
             df = st.session_state['df_bruto']
             st.success("¡Datos listos en memoria!")
+            
+            # NUEVO GRÁFICO: Top Productos
+            st.markdown("### 📊 Top 10 Productos Más Vendidos")
+            top_productos = df['Producto'].value_counts().head(10)
+            st.bar_chart(top_productos, color="#4CAF50")
+            
             st.write("Vista previa de las transacciones (Formato Lista):")
             st.dataframe(df.head())
             
@@ -172,12 +172,28 @@ else:
                         if reglas.empty:
                             st.error("No hay reglas con esa confianza mínima. Intenta bajar la confianza.")
                         else:
-                            reglas["antecedents"] = reglas["antecedents"].apply(lambda x: ', '.join(list(x)))
-                            reglas["consequents"] = reglas["consequents"].apply(lambda x: ', '.join(list(x)))
-                            st.session_state['reglas'] = reglas
+                            # Hacer una copia limpia de las reglas para mostrarlas en la tabla
+                            reglas_tabla = reglas.copy()
+                            reglas_tabla["antecedents"] = reglas_tabla["antecedents"].apply(lambda x: ', '.join(list(x)))
+                            reglas_tabla["consequents"] = reglas_tabla["consequents"].apply(lambda x: ', '.join(list(x)))
+                            st.session_state['reglas'] = reglas_tabla
                             
-                            st.success(f"¡Se encontraron {len(reglas)} reglas de asociación fuertes!")
-                            reglas_mostrar = reglas[['antecedents', 'consequents', 'support', 'confidence', 'lift']].sort_values(by="lift", ascending=False)
+                            st.success(f"¡Se encontraron {len(reglas_tabla)} reglas de asociación fuertes!")
+                            
+                            # NUEVO GRÁFICO: Mapa de Dispersión
+                            st.markdown("### 📈 Mapeo de Reglas (Soporte vs Confianza)")
+                            st.info("El tamaño de la burbuja representa la fuerza de la relación (Lift).")
+                            # Usamos el dataframe original "reglas" para el gráfico porque Streamlit necesita los números puros
+                            st.scatter_chart(
+                                data=reglas,
+                                x='support',
+                                y='confidence',
+                                size='lift',
+                                color='#FF4B4B'
+                            )
+                            
+                            st.markdown("### 📋 Tabla de Resultados Detallados")
+                            reglas_mostrar = reglas_tabla[['antecedents', 'consequents', 'support', 'confidence', 'lift']].sort_values(by="lift", ascending=False)
                             reglas_mostrar.columns = ['Si compran (Antecedente)', 'También compran (Consecuente)', 'Soporte', 'Confianza', 'Lift (Fuerza)']
                             st.dataframe(reglas_mostrar)
 
@@ -306,7 +322,6 @@ else:
         
         with col1:
             st.info("Paso 1: Desvincular credenciales")
-            # El botón verde renderiza aquí limpiamente
             logout_button(url=url, apiKey=key)
             
         with col2:
