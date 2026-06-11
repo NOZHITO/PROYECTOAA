@@ -5,4 +5,5 @@ matplotlib
 fpdf
 supabase
 toml
-streamlit-supabase-auth>=0.2.1
+streamlit-supabase-auth
+networkx

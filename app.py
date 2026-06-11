@@ -3,6 +3,7 @@ import pandas as pd
 from mlxtend.frequent_patterns import apriori, association_rules
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import networkx as nx
 from fpdf import FPDF
 from supabase import create_client, Client
 from streamlit_supabase_auth import login_form, logout_button
@@ -68,12 +69,13 @@ else:
     st.sidebar.title("Menú OPSO")
     st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3081/3081840.png", width=80)
     
+    # Añadimos "Acerca del Equipo" a la navegación
     if rol_usuario == 'admin':
-        menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes", "Cerrar Sesión"]
+        menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes", "Acerca del Equipo", "Cerrar Sesión"]
     elif rol_usuario == 'gerente':
-        menu = ["Página Principal", "Reportes", "Cerrar Sesión"]
+        menu = ["Página Principal", "Reportes", "Acerca del Equipo", "Cerrar Sesión"]
     else:
-        menu = ["Página Principal", "Análisis de Patrones", "Simulación de Layout", "Cerrar Sesión"]
+        menu = ["Página Principal", "Análisis de Patrones", "Simulación de Layout", "Acerca del Equipo", "Cerrar Sesión"]
         
     eleccion = st.sidebar.radio("Navegación", menu)
 
@@ -120,12 +122,10 @@ else:
                 except Exception as e:
                     st.error(f"Error al conectar con Supabase: {e}")
                     
-        # Procesamiento común
         if st.session_state['df_bruto'] is not None:
             df = st.session_state['df_bruto']
             st.success("¡Datos listos en memoria!")
             
-            # NUEVO GRÁFICO: Top Productos
             st.markdown("### 📊 Top 10 Productos Más Vendidos")
             top_productos = df['Producto'].value_counts().head(10)
             st.bar_chart(top_productos, color="#4CAF50")
@@ -142,7 +142,7 @@ else:
                 st.write("Vista de la Matriz Booleana:")
                 st.dataframe(st.session_state['df_cesta'].head())
 
-    # --- 3. ANÁLISIS ---
+    # --- 3. ANÁLISIS DE PATRONES ---
     elif eleccion == "Análisis de Patrones":
         st.title("🧠 Análisis de Patrones (Algoritmo Apriori)")
         
@@ -172,32 +172,85 @@ else:
                         if reglas.empty:
                             st.error("No hay reglas con esa confianza mínima. Intenta bajar la confianza.")
                         else:
-                            # Hacer una copia limpia de las reglas para mostrarlas en la tabla
                             reglas_tabla = reglas.copy()
                             reglas_tabla["antecedents"] = reglas_tabla["antecedents"].apply(lambda x: ', '.join(list(x)))
                             reglas_tabla["consequents"] = reglas_tabla["consequents"].apply(lambda x: ', '.join(list(x)))
                             st.session_state['reglas'] = reglas_tabla
-                            
                             st.success(f"¡Se encontraron {len(reglas_tabla)} reglas de asociación fuertes!")
-                            
-                            # NUEVO GRÁFICO: Mapa de Dispersión
-                            st.markdown("### 📈 Mapeo de Reglas (Soporte vs Confianza)")
-                            st.info("El tamaño de la burbuja representa la fuerza de la relación (Lift).")
-                            # Usamos el dataframe original "reglas" para el gráfico porque Streamlit necesita los números puros
-                            st.scatter_chart(
-                                data=reglas,
-                                x='support',
-                                y='confidence',
-                                size='lift',
-                                color='#FF4B4B'
-                            )
-                            
-                            st.markdown("### 📋 Tabla de Resultados Detallados")
-                            reglas_mostrar = reglas_tabla[['antecedents', 'consequents', 'support', 'confidence', 'lift']].sort_values(by="lift", ascending=False)
-                            reglas_mostrar.columns = ['Si compran (Antecedente)', 'También compran (Consecuente)', 'Soporte', 'Confianza', 'Lift (Fuerza)']
-                            st.dataframe(reglas_mostrar)
 
-    # --- 4. SIMULACIÓN ---
+            # Si ya hay reglas en memoria, mostramos la interfaz interactiva
+            if st.session_state['reglas'] is not None:
+                reglas_base = st.session_state['reglas']
+                
+                st.markdown("---")
+                # NUEVO: Filtro Buscador de Productos
+                st.markdown("### 🔍 Buscador de Asociaciones")
+                filtro_producto = st.text_input("Filtrar por producto específico (ej. Cerveza, Pan, Leche):", "")
+                
+                # Lógica de filtrado
+                if filtro_producto:
+                    mask = reglas_base['antecedents'].str.contains(filtro_producto, case=False, na=False) | \
+                           reglas_base['consequents'].str.contains(filtro_producto, case=False, na=False)
+                    reglas_mostrar = reglas_base[mask]
+                else:
+                    reglas_mostrar = reglas_base
+                
+                # Preparamos la tabla final para mostrar
+                tabla_final = reglas_mostrar[['antecedents', 'consequents', 'support', 'confidence', 'lift']].sort_values(by="lift", ascending=False)
+                tabla_final.columns = ['Si compran (Antecedente)', 'También compran (Consecuente)', 'Soporte', 'Confianza', 'Lift (Fuerza)']
+                
+                col_g1, col_g2 = st.columns(2)
+                
+                with col_g1:
+                    st.markdown("### 📈 Mapeo de Reglas (Soporte vs Confianza)")
+                    st.info("El tamaño de la burbuja representa la fuerza de la relación (Lift).")
+                    if not tabla_final.empty:
+                        st.scatter_chart(data=reglas_mostrar, x='support', y='confidence', size='lift', color='#FF4B4B')
+                    else:
+                        st.warning("No hay datos para graficar con ese filtro.")
+
+                with col_g2:
+                    # NUEVO: Gráfico de Red (Network Graph)
+                    st.markdown("### 🕸️ Red de Compras Frecuentes")
+                    st.info("Visualización de las conexiones entre productos.")
+                    
+                    if not tabla_final.empty:
+                        # Limitamos a las top 20 reglas para que la red no sea un caos visual
+                        reglas_red = tabla_final.head(20)
+                        
+                        fig_net, ax_net = plt.subplots(figsize=(6, 6))
+                        G = nx.DiGraph()
+                        
+                        for _, row in reglas_red.iterrows():
+                            ant = row['Si compran (Antecedente)']
+                            con = row['También compran (Consecuente)']
+                            peso = row['Lift (Fuerza)']
+                            G.add_edge(ant, con, weight=peso)
+                            
+                        # Dibujamos la red
+                        pos = nx.spring_layout(G, k=0.8, seed=42)
+                        nx.draw(G, pos, with_labels=True, node_color='#baffc9', 
+                                node_size=2000, font_size=9, font_weight='bold', 
+                                edge_color='#999999', ax=ax_net, arrows=True,
+                                arrowsize=15, alpha=0.9)
+                        
+                        st.pyplot(fig_net)
+                    else:
+                        st.warning("No hay conexiones para graficar.")
+
+                st.markdown("### 📋 Tabla de Resultados Detallados")
+                st.dataframe(tabla_final, use_container_width=True)
+                
+                # NUEVO: Botón de Exportar Análisis CSV
+                csv_reglas = tabla_final.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Descargar Reglas de Asociación (CSV)",
+                    data=csv_reglas,
+                    file_name="OPSO_Reglas_Apriori.csv",
+                    mime="text/csv"
+                )
+
+    # --- 4. SIMULACIÓN DE LAYOUT ---
     elif eleccion == "Simulación de Layout":
         st.title("🗺️ Simulación y Optimización del Layout")
         
@@ -261,7 +314,6 @@ else:
             st.metric(label="Índice de Afinidad de Layout", value="84.2 / 100", delta="Excelente acoplamiento")
             
         st.markdown("### 📋 Matriz de Planificación de Movimientos")
-        st.write("A continuación se detallan las acciones físicas sugeridas para el equipo de operaciones del supermercado:")
         
         reporte_data = {
             "Zona Destino": ["Zona Parrilla", "Zona Estudiante", "Zona Desayuno", "Abarrotes", "Limpieza"],
@@ -273,7 +325,6 @@ else:
         st.dataframe(df_reporte, use_container_width=True)
         
         st.markdown("### 📥 Descarga de Entregables")
-        st.write("Exporta la información para presentarla a la gerencia comercial o al equipo de planta.")
         
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
@@ -289,11 +340,9 @@ else:
             pdf.add_page()
             pdf.set_font("Arial", 'B', 16)
             pdf.cell(0, 10, txt="Reporte Ejecutivo OPSO", ln=True, align='C')
-            
             pdf.set_font("Arial", 'B', 12)
             pdf.ln(10)
             pdf.cell(0, 10, txt="Resumen de Optimizacion de Layout", ln=True, align='L')
-            
             pdf.set_font("Arial", '', 11)
             texto_cuerpo = (
                 "Este documento ha sido generado automaticamente por el sistema OPSO. "
@@ -301,9 +350,7 @@ else:
                 "que sugieren una reduccion del 28.4% en el recorrido critico del cliente."
             )
             pdf.multi_cell(0, 8, txt=texto_cuerpo)
-            
             pdf_bytes = pdf.output(dest='S').encode('latin-1')
-            
             st.download_button(
                 label="📄 Descargar Reporte de Rendimiento (PDF)",
                 data=pdf_bytes,
@@ -311,7 +358,38 @@ else:
                 mime="application/pdf"
             )
 
-    # --- 6. CERRAR SESIÓN (PANTALLA DEDICADA) ---
+    # --- 6. ACERCA DEL EQUIPO ---
+    elif eleccion == "Acerca del Equipo":
+        st.title("🎓 Acerca del Equipo")
+        st.markdown("### Desarrolladores y Analistas de OPSO")
+        st.write("Este sistema fue diseñado y desarrollado como una solución integral para el análisis de la cesta de la compra mediante Machine Learning, enfocándose en la optimización de espacios comerciales.")
+        
+        st.markdown("---")
+        
+        col_equipo, col_info = st.columns([1, 1])
+        
+        with col_equipo:
+            st.info("**Equipo del Proyecto:**")
+            st.markdown("""
+            * Enoc Santamaria Rodriguez
+            * Héctor
+            * Raúl
+            * Luis
+            * Cris
+            * Thomas
+            * Alvin
+            """)
+            
+        with col_info:
+            st.success("**Tecnologías Utilizadas:**")
+            st.markdown("""
+            * **Frontend:** Streamlit, Matplotlib
+            * **Backend:** Python, Supabase (PostgreSQL)
+            * **Machine Learning:** Mlxtend (Algoritmo Apriori)
+            * **Estructura de Datos:** Pandas, NetworkX
+            """)
+
+    # --- 7. CERRAR SESIÓN ---
     elif eleccion == "Cerrar Sesión":
         st.title("🔒 Salir del Sistema")
         st.warning("Estás a punto de cerrar tu sesión en OPSO.")
