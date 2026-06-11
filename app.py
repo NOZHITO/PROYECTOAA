@@ -5,9 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from fpdf import FPDF
 from supabase import create_client, Client
-from streamlit_supabase_auth import login_form
 from streamlit_supabase_auth import login_form, logout_button
-
 
 # Configuración básica de la página
 st.set_page_config(page_title="OPSO - Optimal Placement Stock", page_icon="🛒", layout="wide")
@@ -71,28 +69,18 @@ else:
     st.sidebar.title("Menú OPSO")
     st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3081/3081840.png", width=80)
     
-    # Menú dinámico según el rol
+    # Menú dinámico según el rol (AHORA INCLUYE 'CERRAR SESIÓN')
     if rol_usuario == 'admin':
-        menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes"]
+        menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes", "Cerrar Sesión"]
     elif rol_usuario == 'gerente':
-        menu = ["Página Principal", "Reportes"]
+        menu = ["Página Principal", "Reportes", "Cerrar Sesión"]
     else:
-        menu = ["Página Principal", "Análisis de Patrones", "Simulación de Layout"]
+        menu = ["Página Principal", "Análisis de Patrones", "Simulación de Layout", "Cerrar Sesión"]
         
     eleccion = st.sidebar.radio("Navegación", menu)
 
     st.sidebar.markdown("---")
     st.sidebar.info(f"Usuario: {email_usuario}\nRol: {rol_usuario.upper()}")
-    
-    # 💥 BOTÓN OFICIAL CON RECARGA AUTOMÁTICA
-    with st.sidebar:
-        click_salir = logout_button(url=url, apiKey=key)
-        
-        if click_salir:
-            # Limpiamos la memoria de la app
-            st.session_state.clear()
-            # Forzamos el reinicio visual instantáneo
-            st.rerun()
 
     # --- 1. PÁGINA PRINCIPAL ---
     if eleccion == "Página Principal":
@@ -306,3 +294,24 @@ else:
                 file_name="OPSO_Reporte_Ejecutivo.pdf",
                 mime="application/pdf"
             )
+
+    # --- 6. CERRAR SESIÓN (PANTALLA DEDICADA) ---
+    elif eleccion == "Cerrar Sesión":
+        st.title("🔒 Salir del Sistema")
+        st.warning("Estás a punto de cerrar tu sesión en OPSO.")
+        st.write("Por motivos de seguridad, el cierre de sesión se realiza en dos pasos de verificación.")
+        
+        st.markdown("---")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.info("Paso 1: Desvincular credenciales")
+            # El botón verde renderiza aquí limpiamente
+            logout_button(url=url, apiKey=key)
+            
+        with col2:
+            st.error("Paso 2: Borrar memoria local")
+            if st.button("Confirmar Salida y Recargar"):
+                st.session_state.clear()
+                st.query_params.clear()
+                st.rerun()
