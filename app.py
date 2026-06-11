@@ -11,6 +11,43 @@ from streamlit_supabase_auth import login_form, logout_button
 # Configuración básica de la página
 st.set_page_config(page_title="OPSO - Optimal Placement Stock", page_icon="🛒", layout="wide")
 
+# --- INYECCIÓN DE CSS PARA EL FRONTEND ---
+st.markdown("""
+<style>
+    /* Estilo para suavizar y modernizar los botones */
+    .stButton>button {
+        border-radius: 8px;
+        transition: all 0.3s ease-in-out;
+        border: 1px solid #4CAF50;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+    }
+    
+    /* Diseño de tarjetas para las métricas en la pestaña de Reportes */
+    div[data-testid="metric-container"] {
+        background-color: #1e212b; /* Fondo oscuro elegante */
+        border: 1px solid #333;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: transform 0.2s;
+    }
+    div[data-testid="metric-container"]:hover {
+        transform: scale(1.02);
+    }
+    
+    /* Separadores más sutiles */
+    hr {
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+        border: 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Inicializar memoria temporal para guardar los datos entre pantallas
 if 'user' not in st.session_state:
     st.session_state['user'] = None
@@ -21,7 +58,7 @@ if 'df_cesta' not in st.session_state:
 if 'reglas' not in st.session_state:
     st.session_state['reglas'] = None
 
-# --- INICIALIZAR SUPABASE (GLOBAL PARA LOGIN Y DATOS) ---
+# --- INICIALIZAR SUPABASE ---
 url = st.secrets["supabase"]["url"]
 key = st.secrets["supabase"]["key"]
 supabase = create_client(url, key)
@@ -69,13 +106,13 @@ else:
     st.sidebar.title("Menú OPSO")
     st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3081/3081840.png", width=80)
     
-    # Añadimos "Acerca del Equipo" a la navegación
+    # Menús actualizados (Sin Acerca del Equipo)
     if rol_usuario == 'admin':
-        menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes", "Acerca del Equipo", "Cerrar Sesión"]
+        menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes", "Cerrar Sesión"]
     elif rol_usuario == 'gerente':
-        menu = ["Página Principal", "Reportes", "Acerca del Equipo", "Cerrar Sesión"]
+        menu = ["Página Principal", "Reportes", "Cerrar Sesión"]
     else:
-        menu = ["Página Principal", "Análisis de Patrones", "Simulación de Layout", "Acerca del Equipo", "Cerrar Sesión"]
+        menu = ["Página Principal", "Análisis de Patrones", "Simulación de Layout", "Cerrar Sesión"]
         
     eleccion = st.sidebar.radio("Navegación", menu)
 
@@ -178,16 +215,13 @@ else:
                             st.session_state['reglas'] = reglas_tabla
                             st.success(f"¡Se encontraron {len(reglas_tabla)} reglas de asociación fuertes!")
 
-            # Si ya hay reglas en memoria, mostramos la interfaz interactiva
             if st.session_state['reglas'] is not None:
                 reglas_base = st.session_state['reglas']
                 
                 st.markdown("---")
-                # NUEVO: Filtro Buscador de Productos
                 st.markdown("### 🔍 Buscador de Asociaciones")
                 filtro_producto = st.text_input("Filtrar por producto específico (ej. Cerveza, Pan, Leche):", "")
                 
-                # Lógica de filtrado
                 if filtro_producto:
                     mask = reglas_base['antecedents'].str.contains(filtro_producto, case=False, na=False) | \
                            reglas_base['consequents'].str.contains(filtro_producto, case=False, na=False)
@@ -195,7 +229,6 @@ else:
                 else:
                     reglas_mostrar = reglas_base
                 
-                # Preparamos la tabla final para mostrar
                 tabla_final = reglas_mostrar[['antecedents', 'consequents', 'support', 'confidence', 'lift']].sort_values(by="lift", ascending=False)
                 tabla_final.columns = ['Si compran (Antecedente)', 'También compran (Consecuente)', 'Soporte', 'Confianza', 'Lift (Fuerza)']
                 
@@ -210,14 +243,11 @@ else:
                         st.warning("No hay datos para graficar con ese filtro.")
 
                 with col_g2:
-                    # NUEVO: Gráfico de Red (Network Graph)
                     st.markdown("### 🕸️ Red de Compras Frecuentes")
                     st.info("Visualización de las conexiones entre productos.")
                     
                     if not tabla_final.empty:
-                        # Limitamos a las top 20 reglas para que la red no sea un caos visual
                         reglas_red = tabla_final.head(20)
-                        
                         fig_net, ax_net = plt.subplots(figsize=(6, 6))
                         G = nx.DiGraph()
                         
@@ -227,7 +257,6 @@ else:
                             peso = row['Lift (Fuerza)']
                             G.add_edge(ant, con, weight=peso)
                             
-                        # Dibujamos la red
                         pos = nx.spring_layout(G, k=0.8, seed=42)
                         nx.draw(G, pos, with_labels=True, node_color='#baffc9', 
                                 node_size=2000, font_size=9, font_weight='bold', 
@@ -241,7 +270,6 @@ else:
                 st.markdown("### 📋 Tabla de Resultados Detallados")
                 st.dataframe(tabla_final, use_container_width=True)
                 
-                # NUEVO: Botón de Exportar Análisis CSV
                 csv_reglas = tabla_final.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     label="📥 Descargar Reglas de Asociación (CSV)",
@@ -358,38 +386,7 @@ else:
                 mime="application/pdf"
             )
 
-    # --- 6. ACERCA DEL EQUIPO ---
-    elif eleccion == "Acerca del Equipo":
-        st.title("🎓 Acerca del Equipo")
-        st.markdown("### Desarrolladores y Analistas de OPSO")
-        st.write("Este sistema fue diseñado y desarrollado como una solución integral para el análisis de la cesta de la compra mediante Machine Learning, enfocándose en la optimización de espacios comerciales.")
-        
-        st.markdown("---")
-        
-        col_equipo, col_info = st.columns([1, 1])
-        
-        with col_equipo:
-            st.info("**Equipo del Proyecto:**")
-            st.markdown("""
-            * Enoc Santamaria Rodriguez
-            * Héctor
-            * Raúl
-            * Luis
-            * Cris
-            * Thomas
-            * Alvin
-            """)
-            
-        with col_info:
-            st.success("**Tecnologías Utilizadas:**")
-            st.markdown("""
-            * **Frontend:** Streamlit, Matplotlib
-            * **Backend:** Python, Supabase (PostgreSQL)
-            * **Machine Learning:** Mlxtend (Algoritmo Apriori)
-            * **Estructura de Datos:** Pandas, NetworkX
-            """)
-
-    # --- 7. CERRAR SESIÓN ---
+    # --- 6. CERRAR SESIÓN ---
     elif eleccion == "Cerrar Sesión":
         st.title("🔒 Salir del Sistema")
         st.warning("Estás a punto de cerrar tu sesión en OPSO.")
