@@ -70,7 +70,6 @@ def obtener_rol(email):
         if respuesta.data:
             return respuesta.data[0]['rol']
         else:
-            st.sidebar.warning("⚠️ Tu correo ingresó, pero no existe en la tabla 'usuarios_perfiles'.")
             return 'analista'
     except Exception as e:
         st.sidebar.error(f"🚨 Error de Base de Datos: {e}")
@@ -88,6 +87,24 @@ if st.session_state['user'] is None:
     )
 
     if user_info:
+        # Extraemos el email de forma segura del objeto retornado por el proveedor
+        if isinstance(user_info, dict) and 'user' in user_info:
+            email_nuevo = user_info['user'].get('email', '')
+        elif isinstance(user_info, dict):
+            email_usuario = user_info.get('email', '')
+        else:
+            email_nuevo = getattr(getattr(user_info, 'user', None), 'email', getattr(user_info, 'email', ''))
+
+        # PUENTE AUTOMÁTICO: Verificar si el correo ya existe en la tabla pública
+        if email_nuevo:
+            try:
+                chequeo = supabase.table("usuarios_perfiles").select("*").eq("email", email_nuevo).execute()
+                # Si la tabla está vacía para este correo, creamos su perfil por defecto
+                if not chequeo.data:
+                    supabase.table("usuarios_perfiles").insert({"email": email_nuevo, "rol": "analista"}).execute()
+            except Exception as e:
+                st.error(f"Error al registrar perfil automático: {e}")
+
         st.session_state['user'] = user_info
         st.rerun()
 else:
@@ -106,7 +123,7 @@ else:
     st.sidebar.title("Menú OPSO")
     st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3081/3081840.png", width=80)
     
-    # Menús dinámicos (La opción 'Gestión de Usuarios' es EXCLUSIVA para el rol admin)
+    # Menús dinámicos
     if rol_usuario == 'admin':
         menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes", "Gestión de Usuarios", "Cerrar Sesión"]
     elif rol_usuario == 'gerente':
@@ -216,18 +233,18 @@ else:
                             st.success(f"¡Se encontraron {len(reglas_tabla)} reglas de asociación fuertes!")
 
             if st.session_state['reglas'] is not None:
-                reglas_base = st.session_state['reglas']
+                rules_base = st.session_state['reglas']
                 
                 st.markdown("---")
                 st.markdown("### 🔍 Buscador de Asociaciones")
                 filtro_producto = st.text_input("Filtrar por producto específico (ej. Cerveza, Pan, Leche):", "")
                 
                 if filtro_producto:
-                    mask = reglas_base['antecedents'].str.contains(filtro_producto, case=False, na=False) | \
-                           reglas_base['consequents'].str.contains(filtro_producto, case=False, na=False)
-                    reglas_mostrar = reglas_base[mask]
+                    mask = rules_base['antecedents'].str.contains(filtro_producto, case=False, na=False) | \
+                           rules_base['consequents'].str.contains(filtro_producto, case=False, na=False)
+                    reglas_mostrar = rules_base[mask]
                 else:
-                    reglas_mostrar = reglas_base
+                    reglas_mostrar = rules_base
                 
                 tabla_final = reglas_mostrar[['antecedents', 'consequents', 'support', 'confidence', 'lift']].sort_values(by="lift", ascending=False)
                 tabla_final.columns = ['Si compran (Antecedente)', 'También compran (Consecuente)', 'Soporte', 'Confianza', 'Lift (Fuerza)']
@@ -347,7 +364,7 @@ else:
             "Zona Destino": ["Zona Parrilla", "Zona Estudiante", "Zona Desayuno", "Abarrotes", "Limpieza"],
             "Categorías Integradas": ["Carnes, Cerveza, Carbón, Salsa BBQ", "Sopa instantánea, Soda, Snacks", "Pan, Huevos, Leche, Queso", "Arroz, Frijoles, Atún", "Papel Higiénico, Detergente"],
             "Justificación de Regla": ["Afinidad detectada en fines de semana", "Patrón de compra rápida / conveniencia", "Alta correlación diaria en desayunos", "Productos base estables", "Baja correlación con productos alimenticios"],
-            "Prioridad de Execution": ["ALTA", "MEDIA", "ALTA", "BAJA", "MEDIA"]
+            "Prioridad de Ejecución": ["ALTA", "MEDIA", "ALTA", "BAJA", "MEDIA"]
         }
         df_reporte = pd.DataFrame(reporte_data)
         st.dataframe(df_reporte, use_container_width=True)
@@ -393,12 +410,10 @@ else:
         
         with st.spinner("Consultando perfiles en Supabase..."):
             try:
-                # Traer la lista completa de la tabla vinculada
                 respuesta = supabase.table("usuarios_perfiles").select("*").execute()
                 if respuesta.data:
                     df_usuarios = pd.DataFrame(respuesta.data)
                     
-                    # Cuadro de mando / KPIs superiores
                     col_m1, col_m2, col_m3 = st.columns(3)
                     with col_m1:
                         st.metric("Total Usuarios Registrados", len(df_usuarios))
@@ -408,31 +423,24 @@ else:
                         st.metric("Analistas y Gerentes", len(df_usuarios[df_usuarios['rol'] != 'admin']))
                     
                     st.markdown("### 📋 Directorio de Cuentas")
-                    # Filtramos las columnas críticas para mostrar en la interfaz de forma limpia
                     st.dataframe(df_usuarios[['email', 'rol']], use_container_width=True)
                     
                     st.markdown("---")
                     st.markdown("### ⚙️ Modificar Permisos y Roles")
                     
-                    # Selector dinámico basado en los correos que existen físicamente en la BD
                     lista_correos = df_usuarios['email'].tolist()
                     correo_seleccionado = st.selectbox("Seleccione el correo electrónico a modificar:", lista_correos)
                     
-                    # Extraer el rol que tiene actualmente ese usuario
                     rol_actual = df_usuarios[df_usuarios['email'] == correo_seleccionado]['rol'].values[0]
-                    
                     roles_sistema = ['admin', 'gerente', 'analista']
-                    # Determinar el índice para que aparezca seleccionado por defecto su rol real
                     idx_defecto = roles_sistema.index(rol_actual) if rol_actual in roles_sistema else 2
                     
-                    nuevo_rol_asignado = st.selectbox("Asignar nuevo rol de acceso:", roles_sistema, index=idx_defecto)
+                    nuevo_rol_assigned = st.selectbox("Asignar nuevo rol de acceso:", roles_sistema, index=idx_defecto)
                     
                     if st.button("Actualizar Privilegios de Usuario"):
                         with st.spinner("Guardando cambios en Supabase..."):
-                            # Ejecutar la consulta de actualización directa
-                            supabase.table("usuarios_perfiles").update({"rol": nuevo_rol_asignado}).eq("email", correo_seleccionado).execute()
-                            st.success(f"¡Éxito! El usuario {correo_seleccionado} ahora tiene el rol de: {nuevo_rol_asignado.upper()}")
-                            # Forzar recarga para actualizar el menú lateral de inmediato si te modificaste a ti mismo
+                            supabase.table("usuarios_perfiles").update({"rol": nuevo_rol_assigned}).eq("email", correo_seleccionado).execute()
+                            st.success(f"¡Éxito! El usuario {correo_seleccionado} ahora tiene el rol de: {nuevo_rol_assigned.upper()}")
                             st.rerun()
                 else:
                     st.warning("La tabla 'usuarios_perfiles' no retornó registros.")
@@ -458,3 +466,4 @@ else:
                 st.session_state.clear()
                 st.query_params.clear()
                 st.rerun()
+                
