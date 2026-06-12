@@ -8,6 +8,7 @@ from fpdf import FPDF
 from supabase import create_client, Client
 from streamlit_supabase_auth import login_form, logout_button
 import datetime
+import ast
 
 # Configuración básica de la página
 st.set_page_config(page_title="OPSO - Optimal Placement Stock", page_icon="🛒", layout="wide")
@@ -497,6 +498,24 @@ else:
                 st.markdown("### Auditar Propuesta")
                 id_aprobar = st.selectbox("Seleccione el ID de la propuesta a evaluar:", df_hist['id'].tolist())
                 
+                # --- NUEVO: VISUALIZADOR DE DETALLES DEL LAYOUT ---
+                st.markdown("#### 📋 Detalles de la Nueva Distribución")
+                fila_seleccionada = df_hist[df_hist['id'] == id_aprobar].iloc[0]
+                
+                try:
+                    # Convertimos el texto guardado en la base de datos de vuelta a una lista
+                    asociaciones_lista = ast.literal_eval(fila_seleccionada['asociaciones'])
+                    
+                    # Desplegamos cómo quedarán los pasillos en tarjetas bonitas
+                    for i, zona in enumerate(asociaciones_lista):
+                        st.info(f"**Estante {i+1}:** {zona}")
+                except Exception as e:
+                    # Si hay algún error leyendo, muestra el texto crudo por seguridad
+                    st.write(fila_seleccionada['asociaciones'])
+                
+                st.markdown("---")
+                # -------------------------------------------------
+                
                 col_b1, col_b2 = st.columns(2)
                 with col_b1:
                     if st.button("✅ Aprobar Layout para la Tienda"):
@@ -512,7 +531,6 @@ else:
                 st.info("No hay propuestas de Layout pendientes de revisión.")
         except Exception as e:
             st.error(f"Error al cargar el historial gerencial: {e}. Verifique que ejecutó el comando SQL para crear la tabla.")
-
     # --- 6. GESTIÓN DE USUARIOS ---
     elif eleccion == "Gestión de Usuarios":
         st.title("👥 Panel de Gestión de Usuarios")
