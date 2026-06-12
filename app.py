@@ -63,16 +63,32 @@ url = st.secrets["supabase"]["url"]
 key = st.secrets["supabase"]["key"]
 supabase = create_client(url, key)
 
-# Función para consultar el rol
+# --- FUNCIÓN INTELIGENTE DE ROL Y REGISTRO AUTOMÁTICO ---
 def obtener_rol(email):
+    if not email:
+        return 'analista'
+        
     try:
+        # 1. Buscamos si el usuario ya existe
         respuesta = supabase.table("usuarios_perfiles").select("rol").eq("email", email).execute()
+        
+        # 2. Si existe, devolvemos su rol normal
         if respuesta.data:
             return respuesta.data[0]['rol']
+            
+        # 3. SI NO EXISTE: ¡Lo insertamos automáticamente!
         else:
-            return 'analista'
+            try:
+                # Insertamos el nuevo correo con el rol por defecto 'analista'
+                supabase.table("usuarios_perfiles").insert({"email": email, "rol": "analista"}).execute()
+                # Devolvemos 'analista' para que pueda usar la app inmediatamente
+                return 'analista'
+            except Exception as e_insert:
+                st.sidebar.error(f"Error insertando nuevo usuario en BD: {e_insert}")
+                return 'analista'
+                
     except Exception as e:
-        st.sidebar.error(f"🚨 Error de Base de Datos: {e}")
+        st.sidebar.error(f"🚨 Error de conexión con la Base de Datos: {e}")
         return 'analista'
 
 # --- LÓGICA DE LOGIN Y SEGURIDAD ---
@@ -80,6 +96,7 @@ if st.session_state['user'] is None:
     st.title("🔐 Acceso a OPSO")
     st.write("Por favor, inicia sesión con tu cuenta autorizada para acceder al sistema.")
     
+    # El formulario ahora solo se encarga de loguear y devolver el token
     user_info = login_form(
         url=url,
         apiKey=key,
@@ -87,30 +104,13 @@ if st.session_state['user'] is None:
     )
 
     if user_info:
-        # Extraemos el email de forma segura del objeto retornado por el proveedor
-        if isinstance(user_info, dict) and 'user' in user_info:
-            email_nuevo = user_info['user'].get('email', '')
-        elif isinstance(user_info, dict):
-            email_usuario = user_info.get('email', '')
-        else:
-            email_nuevo = getattr(getattr(user_info, 'user', None), 'email', getattr(user_info, 'email', ''))
-
-        # PUENTE AUTOMÁTICO: Verificar si el correo ya existe en la tabla pública
-        if email_nuevo:
-            try:
-                chequeo = supabase.table("usuarios_perfiles").select("*").eq("email", email_nuevo).execute()
-                # Si la tabla está vacía para este correo, creamos su perfil por defecto
-                if not chequeo.data:
-                    supabase.table("usuarios_perfiles").insert({"email": email_nuevo, "rol": "analista"}).execute()
-            except Exception as e:
-                st.error(f"Error al registrar perfil automático: {e}")
-
         st.session_state['user'] = user_info
         st.rerun()
 else:
     # --- BARRA LATERAL (NAVEGACIÓN) ---
     usuario_data = st.session_state['user']
     
+    # Extracción de correo a prueba de fallos
     if isinstance(usuario_data, dict) and 'user' in usuario_data:
         email_usuario = usuario_data['user'].get('email', '')
     elif isinstance(usuario_data, dict):
@@ -118,6 +118,7 @@ else:
     else:
         email_usuario = getattr(getattr(usuario_data, 'user', None), 'email', getattr(usuario_data, 'email', ''))
 
+    # Aquí ocurre la magia: Si es nuevo, obtener_rol lo guarda en Supabase.
     rol_usuario = obtener_rol(email_usuario)
 
     st.sidebar.title("Menú OPSO")
@@ -466,4 +467,3 @@ else:
                 st.session_state.clear()
                 st.query_params.clear()
                 st.rerun()
-                
