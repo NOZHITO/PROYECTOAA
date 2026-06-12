@@ -25,7 +25,7 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
     }
     
-    /* Diseño de tarjetas para las métricas en la pestaña de Reportes */
+    /* Diseño de tarjetas para las métricas en la pestaña de Reportes y Gestión */
     div[data-testid="metric-container"] {
         background-color: #1e212b; /* Fondo oscuro elegante */
         border: 1px solid #333;
@@ -106,9 +106,9 @@ else:
     st.sidebar.title("Menú OPSO")
     st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3081/3081840.png", width=80)
     
-    # Menús actualizados (Sin Acerca del Equipo)
+    # Menús dinámicos (La opción 'Gestión de Usuarios' es EXCLUSIVA para el rol admin)
     if rol_usuario == 'admin':
-        menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes", "Cerrar Sesión"]
+        menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes", "Gestión de Usuarios", "Cerrar Sesión"]
     elif rol_usuario == 'gerente':
         menu = ["Página Principal", "Reportes", "Cerrar Sesión"]
     else:
@@ -347,7 +347,7 @@ else:
             "Zona Destino": ["Zona Parrilla", "Zona Estudiante", "Zona Desayuno", "Abarrotes", "Limpieza"],
             "Categorías Integradas": ["Carnes, Cerveza, Carbón, Salsa BBQ", "Sopa instantánea, Soda, Snacks", "Pan, Huevos, Leche, Queso", "Arroz, Frijoles, Atún", "Papel Higiénico, Detergente"],
             "Justificación de Regla": ["Afinidad detectada en fines de semana", "Patrón de compra rápida / conveniencia", "Alta correlación diaria en desayunos", "Productos base estables", "Baja correlación con productos alimenticios"],
-            "Prioridad de Ejecución": ["ALTA", "MEDIA", "ALTA", "BAJA", "MEDIA"]
+            "Prioridad de Execution": ["ALTA", "MEDIA", "ALTA", "BAJA", "MEDIA"]
         }
         df_reporte = pd.DataFrame(reporte_data)
         st.dataframe(df_reporte, use_container_width=True)
@@ -386,7 +386,60 @@ else:
                 mime="application/pdf"
             )
 
-    # --- 6. CERRAR SESIÓN ---
+    # --- 6. GESTIÓN DE USUARIOS (SOLO PERMITIDO PARA ROL ADMIN) ---
+    elif eleccion == "Gestión de Usuarios":
+        st.title("👥 Panel de Gestión de Usuarios")
+        st.write("Como Administrador, aquí puedes auditar las cuentas registradas y reasignar sus niveles de acceso (roles) en tiempo real.")
+        
+        with st.spinner("Consultando perfiles en Supabase..."):
+            try:
+                # Traer la lista completa de la tabla vinculada
+                respuesta = supabase.table("usuarios_perfiles").select("*").execute()
+                if respuesta.data:
+                    df_usuarios = pd.DataFrame(respuesta.data)
+                    
+                    # Cuadro de mando / KPIs superiores
+                    col_m1, col_m2, col_m3 = st.columns(3)
+                    with col_m1:
+                        st.metric("Total Usuarios Registrados", len(df_usuarios))
+                    with col_m2:
+                        st.metric("Administradores Activos", len(df_usuarios[df_usuarios['rol'] == 'admin']))
+                    with col_m3:
+                        st.metric("Analistas y Gerentes", len(df_usuarios[df_usuarios['rol'] != 'admin']))
+                    
+                    st.markdown("### 📋 Directorio de Cuentas")
+                    # Filtramos las columnas críticas para mostrar en la interfaz de forma limpia
+                    st.dataframe(df_usuarios[['email', 'rol']], use_container_width=True)
+                    
+                    st.markdown("---")
+                    st.markdown("### ⚙️ Modificar Permisos y Roles")
+                    
+                    # Selector dinámico basado en los correos que existen físicamente en la BD
+                    lista_correos = df_usuarios['email'].tolist()
+                    correo_seleccionado = st.selectbox("Seleccione el correo electrónico a modificar:", lista_correos)
+                    
+                    # Extraer el rol que tiene actualmente ese usuario
+                    rol_actual = df_usuarios[df_usuarios['email'] == correo_seleccionado]['rol'].values[0]
+                    
+                    roles_sistema = ['admin', 'gerente', 'analista']
+                    # Determinar el índice para que aparezca seleccionado por defecto su rol real
+                    idx_defecto = roles_sistema.index(rol_actual) if rol_actual in roles_sistema else 2
+                    
+                    nuevo_rol_asignado = st.selectbox("Asignar nuevo rol de acceso:", roles_sistema, index=idx_defecto)
+                    
+                    if st.button("Actualizar Privilegios de Usuario"):
+                        with st.spinner("Guardando cambios en Supabase..."):
+                            # Ejecutar la consulta de actualización directa
+                            supabase.table("usuarios_perfiles").update({"rol": nuevo_rol_asignado}).eq("email", correo_seleccionado).execute()
+                            st.success(f"¡Éxito! El usuario {correo_seleccionado} ahora tiene el rol de: {nuevo_rol_asignado.upper()}")
+                            # Forzar recarga para actualizar el menú lateral de inmediato si te modificaste a ti mismo
+                            st.rerun()
+                else:
+                    st.warning("La tabla 'usuarios_perfiles' no retornó registros.")
+            except Exception as e:
+                st.error(f"🚨 No se pudo cargar el panel de control: {e}")
+
+    # --- 7. CERRAR SESIÓN ---
     elif eleccion == "Cerrar Sesión":
         st.title("🔒 Salir del Sistema")
         st.warning("Estás a punto de cerrar tu sesión en OPSO.")
