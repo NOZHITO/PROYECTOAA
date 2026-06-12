@@ -7,6 +7,7 @@ import networkx as nx
 from fpdf import FPDF
 from supabase import create_client, Client
 from streamlit_supabase_auth import login_form, logout_button
+import datetime
 
 # Configuración básica de la página
 st.set_page_config(page_title="OPSO - Optimal Placement Stock", page_icon="🛒", layout="wide")
@@ -137,9 +138,9 @@ else:
     st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3081/3081840.png", width=80)
     
     if rol_usuario == 'admin':
-        menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes", "Gestión de Usuarios", "Cerrar Sesión"]
+        menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes", "Panel Gerencial", "Gestión de Usuarios", "Cerrar Sesión"]
     elif rol_usuario == 'gerente':
-        menu = ["Página Principal", "Reportes", "Cerrar Sesión"]
+        menu = ["Página Principal", "Reportes", "Panel Gerencial", "Cerrar Sesión"]
     else:
         menu = ["Página Principal", "Análisis de Patrones", "Simulación de Layout", "Cerrar Sesión"]
         
@@ -307,7 +308,7 @@ else:
                     mime="text/csv"
                 )
 
-    # --- 4. SIMULACIÓN DE LAYOUT (AHORA TOTALMENTE DINÁMICO) ---
+    # --- 4. SIMULACIÓN DE LAYOUT (AHORA DINÁMICO CON RUTAS) ---
     elif eleccion == "Simulación de Layout":
         st.title("🗺️ Simulación y Optimización del Layout")
         
@@ -320,93 +321,83 @@ else:
             [7, 4, 2, 3, '#ffffba']   # Estante Central Derecho
         ]
         
-        # 1. CONSTRUIR EL LAYOUT TRADICIONAL (BASADO EN PRODUCTOS INDEPENDIENTES DEL CSV)
+        # 1. CONSTRUIR EL LAYOUT TRADICIONAL
         estantes_actual = []
         if st.session_state['df_bruto'] is not None:
             productos_unicos = st.session_state['df_bruto']['Producto'].value_counts().index.tolist()
             for idx, coord in enumerate(coordenadas_estantes):
-                if idx < len(productos_unicos):
-                    label = f"Pasillo:\n{productos_unicos[idx]}"
-                else:
-                    label = f"Categoría Vacía {idx+1}"
+                if idx < len(productos_unicos): label = f"Pasillo:\n{productos_unicos[idx]}"
+                else: label = f"Categoría Vacía {idx+1}"
                 estantes_actual.append([coord[0], coord[1], coord[2], coord[3], label, '#cccccc'])
         else:
-            # Fallback si no hay ningún archivo cargado todavía
             estantes_actual = [
-                [1, 8, 8, 1, 'Carnes y Embutidos', '#cccccc'],
-                [1, 4, 1.5, 3, 'Lácteos\n(Leche, Queso)', '#cccccc'],
-                [3.5, 4, 1.5, 3, 'Panadería\n(Pan, Huevos)', '#cccccc'],
-                [6, 4, 1.5, 3, 'Bebidas\n(Soda, Cerveza)', '#cccccc'],
+                [1, 8, 8, 1, 'Carnes y Embutidos', '#cccccc'], [1, 4, 1.5, 3, 'Lácteos\n(Leche, Queso)', '#cccccc'],
+                [3.5, 4, 1.5, 3, 'Panadería\n(Pan, Huevos)', '#cccccc'], [6, 4, 1.5, 3, 'Bebidas\n(Soda, Cerveza)', '#cccccc'],
                 [8.5, 4, 1.5, 3, 'Misceláneos\n(Carbón, Snacks)', '#cccccc']
             ]
 
-        # 2. CONSTRUIR EL LAYOUT OPTIMIZADO (MOTOR DINÁMICO BASADO EN APRIORI)
+        # 2. CONSTRUIR EL LAYOUT OPTIMIZADO (DINÁMICO)
         estantes_opso = []
         slots_ocupados = 0
         productos_mapeados = set()
         
-        # Si ya se procesaron reglas matemáticas en la pestaña de Análisis, las leemos
         if st.session_state['reglas'] is not None and not st.session_state['reglas'].empty:
             reglas_df = st.session_state['reglas'].sort_values(by="Lift (Fuerza)" if "Lift (Fuerza)" in st.session_state['reglas'].columns else "lift", ascending=False)
-            
             for _, row in reglas_df.iterrows():
-                if slots_ocupados >= 5:
-                    break
-                    
-                ant = row['antecedents']
-                con = row['consequents']
-                
-                # Evitar emparejar combinaciones repetidas o inversas en el mapa
+                if slots_ocupados >= 5: break
+                ant, con = row['antecedents'], row['consequents']
                 par_actual = frozenset([ant, con])
-                if par_actual in productos_mapeados:
-                    continue
+                if par_actual in productos_mapeados: continue
                 productos_mapeados.add(par_actual)
-                
-                # Asignar a la coordenada correspondiente
                 coord = coordenadas_estantes[slots_ocupados]
-                label_dinamico = f"Zona Optimizado:\n({ant} + {con})"
-                estantes_opso.append([coord[0], coord[1], coord[2], coord[3], label_dinamico, coord[4]])
+                estantes_opso.append([coord[0], coord[1], coord[2], coord[3], f"Zona Optimizado:\n({ant} + {con})", coord[4]])
                 slots_ocupados += 1
                 
-        # Si sobran estantes vacíos, los rellenamos con productos individuales del CSV que no estén emparejados
         if slots_ocupados < 5 and st.session_state['df_bruto'] is not None:
             productos_frecuentes = st.session_state['df_bruto']['Producto'].value_counts().index.tolist()
             for prod in productos_frecuentes:
-                if slots_ocupados >= 5:
-                    break
-                # Verificar que el producto no esté ya metido en una zona combinada
-                ya_esta_mapeado = any(prod in est[4] for est in estantes_opso)
-                if not ya_esta_mapeado:
+                if slots_ocupados >= 5: break
+                if not any(prod in est[4] for est in estantes_opso):
                     coord = coordenadas_estantes[slots_ocupados]
                     estantes_opso.append([coord[0], coord[1], coord[2], coord[3], f"Pasillo General:\n{prod}", coord[4]])
                     slots_ocupados += 1
 
-        # Fallback total por si abren la pestaña sin haber cargado absolutamente nada
         if not estantes_opso:
             estantes_opso = [
-                [1, 8, 4, 1, 'Zona Parrilla\n(Carnes, Cerveza, Carbón)', '#ffb3ba'],
-                [6, 8, 3, 1, 'Zona Estudiante\n(Sopas, Soda, Snacks)', '#baffc9'],
-                [1, 4, 2, 3, 'Zona Desayuno\n(Pan, Huevos, Leche)', '#ffdfba'],
-                [4, 4, 2, 3, 'Abarrotes\n(Arroz, Frijoles)', '#bae1ff'],
+                [1, 8, 4, 1, 'Zona Parrilla\n(Carnes, Cerveza, Carbón)', '#ffb3ba'], [6, 8, 3, 1, 'Zona Estudiante\n(Sopas, Soda, Snacks)', '#baffc9'],
+                [1, 4, 2, 3, 'Zona Desayuno\n(Pan, Huevos, Leche)', '#ffdfba'], [4, 4, 2, 3, 'Abarrotes\n(Arroz, Frijoles)', '#bae1ff'],
                 [7, 4, 2, 3, 'Limpieza\n(Papel, Detergente)', '#ffffba']
             ]
 
-        # Función de dibujo Matplotlib
-        def dibujar_plano(titulo, estantes):
+        # 3. INTERFAZ DE RUTAS
+        st.markdown("### 🚶 Simulador de Recorrido de Compras")
+        opciones_zonas = [est[4].replace('\n', ' ') for est in estantes_opso]
+        zonas_seleccionadas = st.multiselect("Seleccione los pasillos que visitará el cliente:", opciones_zonas)
+        indices_ruta = [opciones_zonas.index(z) for z in zonas_seleccionadas]
+
+        def dibujar_plano_con_ruta(titulo, estantes, indices_ruta=None):
             fig, ax = plt.subplots(figsize=(6, 5))
-            ax.set_xlim(0, 10)
-            ax.set_ylim(0, 10)
-            ax.axis('off')
+            ax.set_xlim(0, 10); ax.set_ylim(0, 10); ax.axis('off')
             
             ax.add_patch(patches.Rectangle((0.5, 0.5), 2.5, 1.5, facecolor='#cccccc', edgecolor='black', linewidth=1.5))
             ax.text(1.75, 1.25, 'Cajas', ha='center', va='center', fontsize=10, fontweight='bold')
-            
             ax.add_patch(patches.Rectangle((7.0, 0.5), 2.5, 1.5, facecolor='#c8e6c9', edgecolor='black', linewidth=1.5))
             ax.text(8.25, 1.25, 'Entrada', ha='center', va='center', fontsize=10, fontweight='bold')
             
-            for x, y, ancho, alto, label, color in estantes:
-                ax.add_patch(patches.Rectangle((x, y), ancho, alto, facecolor=color, edgecolor='black', linewidth=1.2, alpha=0.9))
+            centros_x, centros_y = [], []
+            for i, (x, y, ancho, alto, label, color) in enumerate(estantes):
+                es_ruta = indices_ruta and i in indices_ruta
+                borde = 'red' if es_ruta else 'black'
+                grosor = 3 if es_ruta else 1.2
+                ax.add_patch(patches.Rectangle((x, y), ancho, alto, facecolor=color, edgecolor=borde, linewidth=grosor, alpha=0.9))
                 ax.text(x + ancho/2, y + alto/2, label, ha='center', va='center', fontsize=8, fontweight='bold', color='black', wrap=True)
+                centros_x.append(x + ancho/2)
+                centros_y.append(y + alto/2)
+                
+            if indices_ruta and len(indices_ruta) > 0:
+                rx = [8.25] + [centros_x[i] for i in indices_ruta] + [1.75] # Entrada -> Estantes -> Cajas
+                ry = [1.25] + [centros_y[i] for i in indices_ruta] + [1.25]
+                ax.plot(rx, ry, color='#FF4B4B', linestyle='--', linewidth=2.5, marker='o')
                 
             fig.tight_layout()
             return fig
@@ -414,18 +405,24 @@ else:
         col1, col2 = st.columns(2)
         with col1:
             st.subheader("Layout Inicial (Desorganizado)")
-            st.error("Distribución estándar: Los productos no consideran afinidad.")
-            st.pyplot(dibujar_plano("Distribución por Categorías", estantes_actual))
-            
+            st.pyplot(dibujar_plano_con_ruta("Distribución por Categorías", estantes_actual, indices_ruta))
         with col2:
             st.subheader("Layout Optimizado Dinámicamente (OPSO)")
-            st.success("Distribución Inteligente: Reorganizado según las reglas del algoritmo.")
-            st.pyplot(dibujar_plano("Distribución por Comportamiento", estantes_opso))
+            st.pyplot(dibujar_plano_con_ruta("Distribución por Comportamiento", estantes_opso, indices_ruta))
 
-        if st.session_state['reglas'] is not None:
-            st.info("💡 **Estado del Motor:** El mapa se ha redibujado automáticamente emparejando los productos con mayor fuerza de asociación estadística detectados en tus transacciones.")
-        else:
-            st.info("💡 **Consejo:** Ejecuta primero el modelo matemático en 'Análisis de Patrones' para ver cómo este mapa muta y cambia de forma 100% automática según tus datos.")
+        st.markdown("---")
+        if st.button("💾 Enviar Propuesta de Layout al Panel Gerencial"):
+            try:
+                nombres_estantes = [est[4].replace('\n', ' ') for est in estantes_opso]
+                supabase.table("layouts_historial").insert({
+                    "nombre_layout": f"Propuesta OPSO - {datetime.date.today()}",
+                    "asociaciones": str(nombres_estantes),
+                    "creado_por": email_usuario,
+                    "estado": "Pendiente"
+                }).execute()
+                st.success("¡Propuesta enviada con éxito! El Gerente podrá revisarla en su panel.")
+            except Exception as e:
+                st.error(f"Error al conectar con la base de datos: {e}")
 
     # --- 5. REPORTES ---
     elif eleccion == "Reportes":
@@ -433,13 +430,26 @@ else:
         st.write("Análisis de impacto comercial basado en las recomendaciones del modelo OPSO.")
         
         kpi1, kpi2, kpi3 = st.columns(3)
-        with kpi1:
-            st.metric(label="Reducción de Recorrido Crítico", value="28.4 %", delta="-14.2m de caminata")
-        with kpi2:
-            st.metric(label="Potencial Incremento de Ventas Cruzadas", value="16.5 %", delta="+ B/. 2.40 por ticket")
-        with kpi3:
-            st.metric(label="Índice de Afinidad de Layout", value="84.2 / 100", delta="Excelente acoplamiento")
+        with kpi1: st.metric(label="Reducción de Recorrido Crítico", value="28.4 %", delta="-14.2m de caminata")
+        with kpi2: st.metric(label="Potencial Incremento de Ventas Cruzadas", value="16.5 %", delta="+ B/. 2.40 por ticket")
+        with kpi3: st.metric(label="Índice de Afinidad de Layout", value="84.2 / 100", delta="Excelente acoplamiento")
             
+        st.markdown("### 💰 Calculadora de ROI (Retorno de Inversión)")
+        st.info("Utilice esta herramienta para estimar la ganancia económica al aplicar las reglas matemáticas de OPSO.")
+        
+        col_roi1, col_roi2 = st.columns(2)
+        ticket_prom = col_roi1.number_input("Valor de Ticket Promedio estimado (B/.)", value=25.0)
+        facturas_mes = col_roi2.number_input("Promedio de facturas mensuales", value=1500)
+        
+        if st.session_state['reglas'] is not None and not st.session_state['reglas'].empty:
+            lift_avg = st.session_state['reglas']['lift' if 'lift' in st.session_state['reglas'].columns else 'Lift (Fuerza)'].mean()
+            mejora_conversion = (lift_avg - 1) * 0.05
+            if mejora_conversion < 0: mejora_conversion = 0.02
+            dinero_proyectado = ticket_prom * facturas_mes * mejora_conversion
+            st.success(f"**Proyección:** Al optimizar la tienda agrupando productos con un Lift promedio de {lift_avg:.2f}, estimamos un incremento en ventas de **B/. {dinero_proyectado:,.2f} mensuales**.")
+        else:
+            st.warning("Ejecute el Algoritmo Apriori en la pestaña anterior para calcular la proyección financiera.")
+
         st.markdown("### 📋 Matriz de Planificación de Movimientos")
         
         reporte_data = {
@@ -456,12 +466,7 @@ else:
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             csv_data = df_reporte.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="💾 Descargar Matriz de Movimientos (CSV)",
-                data=csv_data,
-                file_name="OPSO_Matriz_Movimientos.csv",
-                mime="text/csv"
-            )
+            st.download_button(label="💾 Descargar Matriz (CSV)", data=csv_data, file_name="OPSO_Matriz_Movimientos.csv", mime="text/csv")
         with col_btn2:
             pdf = FPDF()
             pdf.add_page()
@@ -471,19 +476,42 @@ else:
             pdf.ln(10)
             pdf.cell(0, 10, txt="Resumen de Optimizacion de Layout", ln=True, align='L')
             pdf.set_font("Arial", '', 11)
-            texto_cuerpo = (
-                "Este documento ha sido generado automaticamente por el sistema OPSO. "
-                "Basado en el algoritmo Apriori, se han detectado asociaciones fuertes "
-                "que sugieren una reduccion del 28.4% en el recorrido critico del cliente."
-            )
+            texto_cuerpo = ("Este documento ha sido generado automaticamente por el sistema OPSO. "
+                            "Basado en el algoritmo Apriori, se han detectado asociaciones fuertes "
+                            "que sugieren una reduccion del 28.4% en el recorrido critico del cliente.")
             pdf.multi_cell(0, 8, txt=texto_cuerpo)
             pdf_bytes = pdf.output(dest='S').encode('latin-1')
-            st.download_button(
-                label="📄 Descargar Reporte de Rendimiento (PDF)",
-                data=pdf_bytes,
-                file_name="OPSO_Reporte_Ejecutivo.pdf",
-                mime="application/pdf"
-            )
+            st.download_button(label="📄 Descargar Reporte (PDF)", data=pdf_bytes, file_name="OPSO_Reporte_Ejecutivo.pdf", mime="application/pdf")
+
+    # --- PANEL GERENCIAL (NUEVO - SOLO ADMIN/GERENTE) ---
+    elif eleccion == "Panel Gerencial":
+        st.title("👨‍💼 Panel de Decisiones Gerenciales")
+        st.write("Historial de propuestas de Layout enviadas por el equipo de análisis para su aprobación o rechazo.")
+        
+        try:
+            res = supabase.table("layouts_historial").select("*").order("creado_en", desc=True).execute()
+            if res.data:
+                df_hist = pd.DataFrame(res.data)
+                st.dataframe(df_hist[['creado_en', 'nombre_layout', 'creado_por', 'estado']], use_container_width=True)
+                
+                st.markdown("### Auditar Propuesta")
+                id_aprobar = st.selectbox("Seleccione el ID de la propuesta a evaluar:", df_hist['id'].tolist())
+                
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    if st.button("✅ Aprobar Layout para la Tienda"):
+                        supabase.table("layouts_historial").update({"estado": "Aprobado"}).eq("id", id_aprobar).execute()
+                        st.success("Layout Aprobado. Se ha registrado en la base de datos.")
+                        st.rerun()
+                with col_b2:
+                    if st.button("❌ Rechazar Propuesta"):
+                        supabase.table("layouts_historial").update({"estado": "Rechazado"}).eq("id", id_aprobar).execute()
+                        st.error("Propuesta rechazada.")
+                        st.rerun()
+            else:
+                st.info("No hay propuestas de Layout pendientes de revisión.")
+        except Exception as e:
+            st.error(f"Error al cargar el historial gerencial: {e}. Verifique que ejecutó el comando SQL para crear la tabla.")
 
     # --- 6. GESTIÓN DE USUARIOS ---
     elif eleccion == "Gestión de Usuarios":
@@ -497,12 +525,9 @@ else:
                     df_usuarios = pd.DataFrame(respuesta.data)
                     
                     col_m1, col_m2, col_m3 = st.columns(3)
-                    with col_m1:
-                        st.metric("Total Usuarios Registrados", len(df_usuarios))
-                    with col_m2:
-                        st.metric("Administradores Activos", len(df_usuarios[df_usuarios['rol'] == 'admin']))
-                    with col_m3:
-                        st.metric("Analistas y Gerentes", len(df_usuarios[df_usuarios['rol'] != 'admin']))
+                    with col_m1: st.metric("Total Usuarios Registrados", len(df_usuarios))
+                    with col_m2: st.metric("Administradores Activos", len(df_usuarios[df_usuarios['rol'] == 'admin']))
+                    with col_m3: st.metric("Analistas y Gerentes", len(df_usuarios[df_usuarios['rol'] != 'admin']))
                     
                     st.markdown("### 📋 Directorio de Cuentas")
                     st.dataframe(df_usuarios[['email', 'rol']], use_container_width=True)
