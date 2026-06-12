@@ -76,18 +76,15 @@ def obtener_rol(email, id_usuario):
         if respuesta.data:
             return respuesta.data[0]['rol']
             
-        # 3. SI NO EXISTE: Lo insertamos automáticamente usando su ID REAL
+        # 3. SI NO EXISTE: Lo insertamos automáticamente usando su ID REAL de Auth
         else:
             try:
-                # Insertamos enviando explícitamente el ID original de Supabase Auth
                 if id_usuario:
                     supabase.table("usuarios_perfiles").insert({
                         "id": id_usuario,
                         "email": email, 
                         "rol": "analista"
                     }).execute()
-                else:
-                    st.sidebar.error("Error: No se pudo obtener el ID del usuario.")
                 return 'analista'
             except Exception as e_insert:
                 st.sidebar.error(f"Error insertando nuevo usuario en BD: {e_insert}")
@@ -118,7 +115,6 @@ else:
     id_usuario = ""
     email_usuario = ""
 
-    # Extracción segura tanto del CORREO como del ID REAL
     if isinstance(usuario_data, dict):
         if 'user' in usuario_data:
             email_usuario = usuario_data['user'].get('email', '')
@@ -135,13 +131,11 @@ else:
             email_usuario = getattr(usuario_data, 'email', '')
             id_usuario = getattr(usuario_data, 'id', '')
 
-    # Enviamos ambas piezas clave a la función de control
     rol_usuario = obtener_rol(email_usuario, id_usuario)
 
     st.sidebar.title("Menú OPSO")
     st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3081/3081840.png", width=80)
     
-    # Menús dinámicos
     if rol_usuario == 'admin':
         menu = ["Página Principal", "Carga de datos", "Análisis de Patrones", "Simulación de Layout", "Reportes", "Gestión de Usuarios", "Cerrar Sesión"]
     elif rol_usuario == 'gerente':
@@ -313,10 +307,91 @@ else:
                     mime="text/csv"
                 )
 
-    # --- 4. SIMULACIÓN DE LAYOUT ---
+    # --- 4. SIMULACIÓN DE LAYOUT (AHORA TOTALMENTE DINÁMICO) ---
     elif eleccion == "Simulación de Layout":
         st.title("🗺️ Simulación y Optimización del Layout")
         
+        # Base de coordenadas de los estantes físicos del supermercado
+        coordenadas_estantes = [
+            [1, 8, 4, 1, '#ffb3ba'],  # Estante Superior Izquierdo
+            [6, 8, 3, 1, '#baffc9'],  # Estante Superior Derecho
+            [1, 4, 2, 3, '#ffdfba'],  # Estante Central Izquierdo
+            [4, 4, 2, 3, '#bae1ff'],  # Estante Central Medio
+            [7, 4, 2, 3, '#ffffba']   # Estante Central Derecho
+        ]
+        
+        # 1. CONSTRUIR EL LAYOUT TRADICIONAL (BASADO EN PRODUCTOS INDEPENDIENTES DEL CSV)
+        estantes_actual = []
+        if st.session_state['df_bruto'] is not None:
+            productos_unicos = st.session_state['df_bruto']['Producto'].value_counts().index.tolist()
+            for idx, coord in enumerate(coordenadas_estantes):
+                if idx < len(productos_unicos):
+                    label = f"Pasillo:\n{productos_unicos[idx]}"
+                else:
+                    label = f"Categoría Vacía {idx+1}"
+                estantes_actual.append([coord[0], coord[1], coord[2], coord[3], label, '#cccccc'])
+        else:
+            # Fallback si no hay ningún archivo cargado todavía
+            estantes_actual = [
+                [1, 8, 8, 1, 'Carnes y Embutidos', '#cccccc'],
+                [1, 4, 1.5, 3, 'Lácteos\n(Leche, Queso)', '#cccccc'],
+                [3.5, 4, 1.5, 3, 'Panadería\n(Pan, Huevos)', '#cccccc'],
+                [6, 4, 1.5, 3, 'Bebidas\n(Soda, Cerveza)', '#cccccc'],
+                [8.5, 4, 1.5, 3, 'Misceláneos\n(Carbón, Snacks)', '#cccccc']
+            ]
+
+        # 2. CONSTRUIR EL LAYOUT OPTIMIZADO (MOTOR DINÁMICO BASADO EN APRIORI)
+        estantes_opso = []
+        slots_ocupados = 0
+        productos_mapeados = set()
+        
+        # Si ya se procesaron reglas matemáticas en la pestaña de Análisis, las leemos
+        if st.session_state['reglas'] is not None and not st.session_state['reglas'].empty:
+            reglas_df = st.session_state['reglas'].sort_values(by="Lift (Fuerza)" if "Lift (Fuerza)" in st.session_state['reglas'].columns else "lift", ascending=False)
+            
+            for _, row in reglas_df.iterrows():
+                if slots_ocupados >= 5:
+                    break
+                    
+                ant = row['antecedents']
+                con = row['consequents']
+                
+                # Evitar emparejar combinaciones repetidas o inversas en el mapa
+                par_actual = frozenset([ant, con])
+                if par_actual in productos_mapeados:
+                    continue
+                productos_mapeados.add(par_actual)
+                
+                # Asignar a la coordenada correspondiente
+                coord = coordenadas_estantes[slots_ocupados]
+                label_dinamico = f"Zona Optimizado:\n({ant} + {con})"
+                estantes_opso.append([coord[0], coord[1], coord[2], coord[3], label_dinamico, coord[4]])
+                slots_ocupados += 1
+                
+        # Si sobran estantes vacíos, los rellenamos con productos individuales del CSV que no estén emparejados
+        if slots_ocupados < 5 and st.session_state['df_bruto'] is not None:
+            productos_frecuentes = st.session_state['df_bruto']['Producto'].value_counts().index.tolist()
+            for prod in productos_frecuentes:
+                if slots_ocupados >= 5:
+                    break
+                # Verificar que el producto no esté ya metido en una zona combinada
+                ya_esta_mapeado = any(prod in est[4] for est in estantes_opso)
+                if not ya_esta_mapeado:
+                    coord = coordenadas_estantes[slots_ocupados]
+                    estantes_opso.append([coord[0], coord[1], coord[2], coord[3], f"Pasillo General:\n{prod}", coord[4]])
+                    slots_ocupados += 1
+
+        # Fallback total por si abren la pestaña sin haber cargado absolutamente nada
+        if not estantes_opso:
+            estantes_opso = [
+                [1, 8, 4, 1, 'Zona Parrilla\n(Carnes, Cerveza, Carbón)', '#ffb3ba'],
+                [6, 8, 3, 1, 'Zona Estudiante\n(Sopas, Soda, Snacks)', '#baffc9'],
+                [1, 4, 2, 3, 'Zona Desayuno\n(Pan, Huevos, Leche)', '#ffdfba'],
+                [4, 4, 2, 3, 'Abarrotes\n(Arroz, Frijoles)', '#bae1ff'],
+                [7, 4, 2, 3, 'Limpieza\n(Papel, Detergente)', '#ffffba']
+            ]
+
+        # Función de dibujo Matplotlib
         def dibujar_plano(titulo, estantes):
             fig, ax = plt.subplots(figsize=(6, 5))
             ax.set_xlim(0, 10)
@@ -338,30 +413,19 @@ else:
 
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader("Layout Actual (Tradicional)")
-            st.error("Ruta larga: Productos relacionados están lejos.")
-            estantes_actual = [
-                [1, 8, 8, 1, 'Carnes y Embutidos', '#ffb3ba'],
-                [1, 4, 1.5, 3, 'Lácteos\n(Leche, Queso)', '#bae1ff'],
-                [3.5, 4, 1.5, 3, 'Panadería\n(Pan, Huevos)', '#ffdfba'],
-                [6, 4, 1.5, 3, 'Bebidas\n(Soda, Cerveza)', '#baffc9'],
-                [8.5, 4, 1.5, 3, 'Misceláneos\n(Carbón, Snacks)', '#ffffba']
-            ]
+            st.subheader("Layout Inicial (Desorganizado)")
+            st.error("Distribución estándar: Los productos no consideran afinidad.")
             st.pyplot(dibujar_plano("Distribución por Categorías", estantes_actual))
             
         with col2:
-            st.subheader("Layout Optimizado (OPSO)")
-            st.success("Ruta corta: Agrupado por hábitos de compra.")
-            estantes_opso = [
-                [1, 8, 4, 1, 'Zona Parrilla\n(Carnes, Cerveza, Carbón)', '#ffb3ba'],
-                [6, 8, 3, 1, 'Zona Estudiante\n(Sopas, Soda, Snacks)', '#baffc9'],
-                [1, 4, 2, 3, 'Zona Desayuno\n(Pan, Huevos, Leche)', '#ffdfba'],
-                [4, 4, 2, 3, 'Abarrotes\n(Arroz, Frijoles)', '#bae1ff'],
-                [7, 4, 2, 3, 'Limpieza\n(Papel, Detergente)', '#ffffba']
-            ]
+            st.subheader("Layout Optimizado Dinámicamente (OPSO)")
+            st.success("Distribución Inteligente: Reorganizado según las reglas del algoritmo.")
             st.pyplot(dibujar_plano("Distribución por Comportamiento", estantes_opso))
 
-        st.info("💡 **Conclusión del Modelo:** Al juntar 'Carnes, Cerveza y Carbón' en una sola zona transitable, evitamos que el cliente parrillero tenga que cruzar todo el supermercado, aumentando la probabilidad de ventas cruzadas.")
+        if st.session_state['reglas'] is not None:
+            st.info("💡 **Estado del Motor:** El mapa se ha redibujado automáticamente emparejando los productos con mayor fuerza de asociación estadística detectados en tus transacciones.")
+        else:
+            st.info("💡 **Consejo:** Ejecuta primero el modelo matemático en 'Análisis de Patrones' para ver cómo este mapa muta y cambia de forma 100% automática según tus datos.")
 
     # --- 5. REPORTES ---
     elif eleccion == "Reportes":
@@ -421,7 +485,7 @@ else:
                 mime="application/pdf"
             )
 
-    # --- 6. GESTIÓN DE USUARIOS (SOLO PERMITIDO PARA ROL ADMIN) ---
+    # --- 6. GESTIÓN DE USUARIOS ---
     elif eleccion == "Gestión de Usuarios":
         st.title("👥 Panel de Gestión de Usuarios")
         st.write("Como Administrador, aquí puedes auditar las cuentas registradas y reasignar sus niveles de acceso (roles) en tiempo real.")
