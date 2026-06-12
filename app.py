@@ -7,7 +7,6 @@ import networkx as nx
 from fpdf import FPDF
 from supabase import create_client, Client
 from streamlit_supabase_auth import login_form, logout_button
-import uuid  # LIBRERÍA NATIVA PARA GENERAR IDs ÚNICOS
 
 # Configuración básica de la página
 st.set_page_config(page_title="OPSO - Optimal Placement Stock", page_icon="🛒", layout="wide")
@@ -65,7 +64,7 @@ key = st.secrets["supabase"]["key"]
 supabase = create_client(url, key)
 
 # --- FUNCIÓN INTELIGENTE DE ROL Y REGISTRO AUTOMÁTICO ---
-def obtener_rol(email):
+def obtener_rol(email, id_usuario):
     if not email:
         return 'analista'
         
@@ -77,19 +76,18 @@ def obtener_rol(email):
         if respuesta.data:
             return respuesta.data[0]['rol']
             
-        # 3. SI NO EXISTE: Lo insertamos automáticamente generando un ID
+        # 3. SI NO EXISTE: Lo insertamos automáticamente usando su ID REAL
         else:
             try:
-                # Generamos un ID único en formato UUID
-                nuevo_id = str(uuid.uuid4())
-                
-                # Insertamos enviando explícitamente el ID, el correo y el rol
-                supabase.table("usuarios_perfiles").insert({
-                    "id": nuevo_id,
-                    "email": email, 
-                    "rol": "analista"
-                }).execute()
-                
+                # Insertamos enviando explícitamente el ID original de Supabase Auth
+                if id_usuario:
+                    supabase.table("usuarios_perfiles").insert({
+                        "id": id_usuario,
+                        "email": email, 
+                        "rol": "analista"
+                    }).execute()
+                else:
+                    st.sidebar.error("Error: No se pudo obtener el ID del usuario.")
                 return 'analista'
             except Exception as e_insert:
                 st.sidebar.error(f"Error insertando nuevo usuario en BD: {e_insert}")
@@ -117,14 +115,28 @@ else:
     # --- BARRA LATERAL (NAVEGACIÓN) ---
     usuario_data = st.session_state['user']
     
-    if isinstance(usuario_data, dict) and 'user' in usuario_data:
-        email_usuario = usuario_data['user'].get('email', '')
-    elif isinstance(usuario_data, dict):
-        email_usuario = usuario_data.get('email', '')
-    else:
-        email_usuario = getattr(getattr(usuario_data, 'user', None), 'email', getattr(usuario_data, 'email', ''))
+    id_usuario = ""
+    email_usuario = ""
 
-    rol_usuario = obtener_rol(email_usuario)
+    # Extracción segura tanto del CORREO como del ID REAL
+    if isinstance(usuario_data, dict):
+        if 'user' in usuario_data:
+            email_usuario = usuario_data['user'].get('email', '')
+            id_usuario = usuario_data['user'].get('id', '')
+        else:
+            email_usuario = usuario_data.get('email', '')
+            id_usuario = usuario_data.get('id', '')
+    else:
+        user_obj = getattr(usuario_data, 'user', None)
+        if user_obj:
+            email_usuario = getattr(user_obj, 'email', '')
+            id_usuario = getattr(user_obj, 'id', '')
+        else:
+            email_usuario = getattr(usuario_data, 'email', '')
+            id_usuario = getattr(usuario_data, 'id', '')
+
+    # Enviamos ambas piezas clave a la función de control
+    rol_usuario = obtener_rol(email_usuario, id_usuario)
 
     st.sidebar.title("Menú OPSO")
     st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3081/3081840.png", width=80)
