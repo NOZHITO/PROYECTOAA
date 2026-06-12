@@ -7,6 +7,7 @@ import networkx as nx
 from fpdf import FPDF
 from supabase import create_client, Client
 from streamlit_supabase_auth import login_form, logout_button
+import uuid  # LIBRERÍA NATIVA PARA GENERAR IDs ÚNICOS
 
 # Configuración básica de la página
 st.set_page_config(page_title="OPSO - Optimal Placement Stock", page_icon="🛒", layout="wide")
@@ -76,12 +77,19 @@ def obtener_rol(email):
         if respuesta.data:
             return respuesta.data[0]['rol']
             
-        # 3. SI NO EXISTE: ¡Lo insertamos automáticamente!
+        # 3. SI NO EXISTE: Lo insertamos automáticamente generando un ID
         else:
             try:
-                # Insertamos el nuevo correo con el rol por defecto 'analista'
-                supabase.table("usuarios_perfiles").insert({"email": email, "rol": "analista"}).execute()
-                # Devolvemos 'analista' para que pueda usar la app inmediatamente
+                # Generamos un ID único en formato UUID
+                nuevo_id = str(uuid.uuid4())
+                
+                # Insertamos enviando explícitamente el ID, el correo y el rol
+                supabase.table("usuarios_perfiles").insert({
+                    "id": nuevo_id,
+                    "email": email, 
+                    "rol": "analista"
+                }).execute()
+                
                 return 'analista'
             except Exception as e_insert:
                 st.sidebar.error(f"Error insertando nuevo usuario en BD: {e_insert}")
@@ -96,7 +104,6 @@ if st.session_state['user'] is None:
     st.title("🔐 Acceso a OPSO")
     st.write("Por favor, inicia sesión con tu cuenta autorizada para acceder al sistema.")
     
-    # El formulario ahora solo se encarga de loguear y devolver el token
     user_info = login_form(
         url=url,
         apiKey=key,
@@ -110,7 +117,6 @@ else:
     # --- BARRA LATERAL (NAVEGACIÓN) ---
     usuario_data = st.session_state['user']
     
-    # Extracción de correo a prueba de fallos
     if isinstance(usuario_data, dict) and 'user' in usuario_data:
         email_usuario = usuario_data['user'].get('email', '')
     elif isinstance(usuario_data, dict):
@@ -118,7 +124,6 @@ else:
     else:
         email_usuario = getattr(getattr(usuario_data, 'user', None), 'email', getattr(usuario_data, 'email', ''))
 
-    # Aquí ocurre la magia: Si es nuevo, obtener_rol lo guarda en Supabase.
     rol_usuario = obtener_rol(email_usuario)
 
     st.sidebar.title("Menú OPSO")
