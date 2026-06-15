@@ -1,0 +1,387 @@
+/* ============================================================
+   OPSO — Estilo visual inspirado en Donezo
+   Uso: pegar en tu app con st.markdown(open("opso_style.css").read(), unsafe_allow_html=True)
+   O bien: st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+   ============================================================ */
+
+/* ── Paleta de colores ── */
+:root {
+  --opso-green: #166534;
+  --opso-green-light: #dcfce7;
+  --opso-green-mid: #86efac;
+  --opso-green-hover: #14532d;
+  --opso-bg: #f8fafc;
+  --opso-surface: #ffffff;
+  --opso-border: rgba(0, 0, 0, 0.08);
+  --opso-text: #0f172a;
+  --opso-muted: #64748b;
+  --opso-radius: 12px;
+  --opso-radius-sm: 8px;
+}
+
+/* ── Fondo general de la app ── */
+.stApp {
+  background-color: var(--opso-bg) !important;
+  font-family: "Inter", "Segoe UI", sans-serif !important;
+}
+
+/* ── Ocultar el menú hamburguesa y footer de Streamlit ── */
+#MainMenu,
+footer,
+header {
+  visibility: hidden !important;
+}
+
+/* ── Barra lateral ── */
+[data-testid="stSidebar"] {
+  background-color: var(--opso-surface) !important;
+  border-right: 1px solid var(--opso-border) !important;
+  padding-top: 0 !important;
+}
+
+[data-testid="stSidebar"] > div:first-child {
+  padding-top: 1rem;
+}
+
+/* Radio buttons de navegación estilo lista */
+[data-testid="stSidebar"] .stRadio > div {
+  gap: 2px !important;
+}
+
+[data-testid="stSidebar"] .stRadio label {
+  background: transparent !important;
+  border: none !important;
+  border-radius: var(--opso-radius-sm) !important;
+  padding: 9px 14px !important;
+  font-size: 14px !important;
+  color: var(--opso-muted) !important;
+  cursor: pointer !important;
+  transition:
+    background 0.15s,
+    color 0.15s !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+
+[data-testid="stSidebar"] .stRadio label:hover {
+  background: var(--opso-green-light) !important;
+  color: var(--opso-green) !important;
+}
+
+[data-testid="stSidebar"] .stRadio label[data-checked="true"],
+[data-testid="stSidebar"] .stRadio input:checked + div {
+  color: var(--opso-green) !important;
+  background: var(--opso-green-light) !important;
+  font-weight: 500 !important;
+  border-left: 3px solid var(--opso-green) !important;
+}
+
+/* Ocultar círculo del radio nativo */
+[data-testid="stSidebar"] .stRadio input[type="radio"] {
+  display: none !important;
+}
+
+/* Título del sidebar */
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+  color: var(--opso-text) !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  padding: 0 16px !important;
+  margin-bottom: 12px !important;
+}
+
+/* Info del usuario en sidebar */
+[data-testid="stSidebar"] .stAlert {
+  background: var(--opso-bg) !important;
+  border: 1px solid var(--opso-border) !important;
+  border-radius: var(--opso-radius-sm) !important;
+  font-size: 12px !important;
+  color: var(--opso-muted) !important;
+}
+
+/* Botón de cerrar sesión */
+[data-testid="stSidebar"] .stButton > button {
+  width: 100% !important;
+  background: transparent !important;
+  border: 1px solid var(--opso-border) !important;
+  border-radius: var(--opso-radius-sm) !important;
+  color: var(--opso-muted) !important;
+  font-size: 13px !important;
+  padding: 8px 14px !important;
+  transition: background 0.15s !important;
+}
+
+[data-testid="stSidebar"] .stButton > button:hover {
+  background: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+  color: #991b1b !important;
+}
+
+/* ── Área de contenido principal ── */
+.main .block-container {
+  padding: 2rem 2.5rem !important;
+  max-width: 1200px !important;
+}
+
+/* ── Títulos de página ── */
+h1 {
+  font-size: 26px !important;
+  font-weight: 600 !important;
+  color: var(--opso-text) !important;
+  margin-bottom: 4px !important;
+}
+
+h2 {
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  color: var(--opso-text) !important;
+}
+
+h3 {
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  color: var(--opso-text) !important;
+}
+
+p,
+.stMarkdown p {
+  font-size: 14px !important;
+  color: var(--opso-muted) !important;
+  line-height: 1.6 !important;
+}
+
+/* ── Tarjetas métricas (st.metric) ── */
+[data-testid="stMetric"] {
+  background: var(--opso-surface) !important;
+  border: 1px solid var(--opso-border) !important;
+  border-radius: var(--opso-radius) !important;
+  padding: 18px 20px !important;
+  transition: box-shadow 0.2s !important;
+}
+
+[data-testid="stMetric"]:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-testid="stMetric"] label {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--opso-muted) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+}
+
+[data-testid="stMetric"] [data-testid="stMetricValue"] {
+  font-size: 32px !important;
+  font-weight: 600 !important;
+  color: var(--opso-text) !important;
+  line-height: 1.1 !important;
+}
+
+[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+
+/* Primera métrica con acento verde (usando :first-child en columna) */
+[data-testid="column"]:first-child [data-testid="stMetric"] {
+  background: var(--opso-green) !important;
+  border-color: var(--opso-green) !important;
+}
+
+[data-testid="column"]:first-child [data-testid="stMetricValue"],
+[data-testid="column"]:first-child [data-testid="stMetric"] label {
+  color: #ffffff !important;
+}
+
+[data-testid="column"]:first-child [data-testid="stMetricDelta"] {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+  border-radius: 20px !important;
+  padding: 2px 8px !important;
+}
+
+/* ── Botones principales ── */
+.stButton > button {
+  background: var(--opso-green) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: var(--opso-radius-sm) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  padding: 9px 20px !important;
+  transition:
+    background 0.15s,
+    transform 0.1s !important;
+  letter-spacing: 0.01em !important;
+}
+
+.stButton > button:hover {
+  background: var(--opso-green-hover) !important;
+  transform: translateY(-1px) !important;
+}
+
+.stButton > button:active {
+  transform: scale(0.98) !important;
+}
+
+/* ── Sliders ── */
+[data-testid="stSlider"] > div > div > div {
+  background: var(--opso-green) !important;
+}
+
+[data-testid="stSlider"] .st-ae {
+  color: var(--opso-green) !important;
+}
+
+/* ── File uploader ── */
+[data-testid="stFileUploader"] {
+  background: var(--opso-surface) !important;
+  border: 2px dashed var(--opso-border) !important;
+  border-radius: var(--opso-radius) !important;
+  padding: 20px !important;
+  transition: border-color 0.2s !important;
+}
+
+[data-testid="stFileUploader"]:hover {
+  border-color: var(--opso-green) !important;
+}
+
+/* ── DataFrames / Tablas ── */
+[data-testid="stDataFrame"] {
+  border: 1px solid var(--opso-border) !important;
+  border-radius: var(--opso-radius) !important;
+  overflow: hidden !important;
+}
+
+/* ── Alertas y mensajes ── */
+.stSuccess {
+  background: var(--opso-green-light) !important;
+  border-left: 4px solid var(--opso-green) !important;
+  border-radius: var(--opso-radius-sm) !important;
+  color: var(--opso-green) !important;
+  font-size: 14px !important;
+}
+
+.stWarning {
+  background: #fef9c3 !important;
+  border-left: 4px solid #ca8a04 !important;
+  border-radius: var(--opso-radius-sm) !important;
+  color: #854d0e !important;
+  font-size: 14px !important;
+}
+
+.stError {
+  background: #fee2e2 !important;
+  border-left: 4px solid #ef4444 !important;
+  border-radius: var(--opso-radius-sm) !important;
+  color: #991b1b !important;
+  font-size: 14px !important;
+}
+
+.stInfo {
+  background: #dbeafe !important;
+  border-left: 4px solid #3b82f6 !important;
+  border-radius: var(--opso-radius-sm) !important;
+  color: #1d4ed8 !important;
+  font-size: 14px !important;
+}
+
+/* ── Spinner ── */
+[data-testid="stSpinner"] {
+  color: var(--opso-green) !important;
+}
+
+/* ── Separadores ── */
+hr {
+  border: none !important;
+  border-top: 1px solid var(--opso-border) !important;
+  margin: 1.5rem 0 !important;
+}
+
+/* ── Tabs (si los usas) ── */
+[data-testid="stTabs"] [role="tab"] {
+  font-size: 14px !important;
+  color: var(--opso-muted) !important;
+  padding: 8px 16px !important;
+  border-bottom: 2px solid transparent !important;
+}
+
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+  color: var(--opso-green) !important;
+  border-bottom-color: var(--opso-green) !important;
+  font-weight: 500 !important;
+}
+
+/* ── Selectbox y inputs ── */
+[data-testid="stSelectbox"] > div > div,
+[data-testid="stTextInput"] > div > div > input {
+  border: 1px solid var(--opso-border) !important;
+  border-radius: var(--opso-radius-sm) !important;
+  font-size: 14px !important;
+  background: var(--opso-surface) !important;
+}
+
+[data-testid="stSelectbox"] > div > div:focus-within,
+[data-testid="stTextInput"] > div > div > input:focus {
+  border-color: var(--opso-green) !important;
+  box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.1) !important;
+  outline: none !important;
+}
+
+/* ── Expanders ── */
+[data-testid="stExpander"] {
+  border: 1px solid var(--opso-border) !important;
+  border-radius: var(--opso-radius) !important;
+  background: var(--opso-surface) !important;
+  overflow: hidden !important;
+}
+
+[data-testid="stExpander"] summary {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: var(--opso-text) !important;
+  padding: 14px 16px !important;
+}
+
+/* ── Download button ── */
+[data-testid="stDownloadButton"] > button {
+  background: var(--opso-surface) !important;
+  color: var(--opso-green) !important;
+  border: 1px solid var(--opso-green) !important;
+  border-radius: var(--opso-radius-sm) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  padding: 9px 18px !important;
+  transition: background 0.15s !important;
+}
+
+[data-testid="stDownloadButton"] > button:hover {
+  background: var(--opso-green-light) !important;
+}
+
+/* ── Gráficos matplotlib ── */
+[data-testid="stImage"] img {
+  border-radius: var(--opso-radius) !important;
+  border: 1px solid var(--opso-border) !important;
+}
+
+/* ── Scrollbar personalizada ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--opso-green);
+}
